@@ -1,0 +1,27 @@
+# Node.js
+node_modules/
+dist/
+build/
+.env
+.env.production
+frontend_service.log
+backend_service.log
+ml_service.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv/
+env/
+model.pkl
+scaler.pkl
+genre_map.pkl
+industry_map.pkl
+
+# Other
+.DS_Store
+*.log
+/tmp/
