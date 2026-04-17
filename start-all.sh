@@ -1,40 +1,40 @@
-#!/bin/bash
+#!/bin/zsh
 
-# Cinelytics Full-Stack Platform Startup Script
-# This orchestrates the ML Service, Backend, and Production Frontend
+# Path to workspace
+BASE_DIR="/Users/AD"
 
-echo "🎬 Starting Cinelytics Platform..."
+echo "🚀 Starting Cinelytics in Zero-Dependency Mode (SQLite)..."
 
-# 1. Start ML Service (FastAPI)
-echo "🤖 Starting ML Service (Port 8000)..."
-cd ml-service
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > ml_service.log 2>&1 &
-ML_PID=$!
-cd ..
+# 1. Seed/Initialize Database if it doesn't exist
+if [ ! -f "$BASE_DIR/cinelytics.sqlite" ]; then
+    echo "🌱 No database found. Seeding cinematic data into SQLite..."
+    zsh -lc "cd $BASE_DIR && source ml-model/venv/bin/activate && python3 dataset/data_gen.py"
+else
+    echo "✅ SQLite Database found."
+fi
 
-# 2. Start Backend (Node.js)
-echo "📦 Starting Backend API (Port 5000)..."
-cd backend
-NODE_ENV=production node server.js > backend_service.log 2>&1 &
+# 2. Start Backend API
+echo "📂 Starting Backend (Port 5005)..."
+zsh -lc "cd $BASE_DIR/backend && npm run dev" &
 BACKEND_PID=$!
-cd ..
 
-# 3. Serve Frontend (Production Build)
-echo "🌐 Serving Production Frontend (Port 5173)..."
-cd frontend
-# Using npx serve to serve the built 'dist' folder
-npx -y serve -s dist -l 5173 > frontend_service.log 2>&1 &
+# 3. Start ML Service
+echo "🧠 Starting ML Service (Port 5001)..."
+zsh -lc "cd $BASE_DIR/ml-model && source venv/bin/activate && python3 app.py" &
+ML_PID=$!
+
+# 4. Start Frontend
+echo "💻 Starting Frontend (Port 5173)..."
+zsh -lc "cd $BASE_DIR/frontend && npm run dev" &
 FRONTEND_PID=$!
-cd ..
 
-echo "✅ All services are launching!"
-echo "--------------------------------------------------"
-echo "Frontend:   http://localhost:5173"
-echo "Backend:    http://localhost:5000/api/movies"
-echo "ML Service: http://localhost:8000/health"
-echo "--------------------------------------------------"
-echo "Logs are available in: ml_service.log, backend_service.log, frontend_service.log"
-echo "To stop all services, run: kill $ML_PID $BACKEND_PID $FRONTEND_PID"
+echo "✨ Cinelytics is live!"
+echo "🔗 Frontend: http://localhost:5173"
+echo "🔗 Backend:  http://localhost:5005"
+echo "🔗 ML API:   http://localhost:5001"
+echo ""
+echo "Press Ctrl+C to stop all services."
 
-# Wait for background processes
+# Handle shutdown
+trap "kill $BACKEND_PID $ML_PID $FRONTEND_PID; echo '🛑 Services stopped.'; exit" INT TERM
 wait

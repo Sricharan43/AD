@@ -5,8 +5,8 @@ router.get('/top', (req, res) => {
   const db = req.app.get('db');
   try {
     const { sortBy = 'averageRevenue' } = req.query;
-    const actors = db.prepare(`SELECT * FROM actors ORDER BY ${sortBy} DESC LIMIT 50`).all();
-    res.json(actors);
+    const directors = db.prepare(`SELECT * FROM directors ORDER BY ${sortBy} DESC LIMIT 50`).all();
+    res.json(directors);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }

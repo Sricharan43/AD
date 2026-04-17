@@ -1,43 +1,105 @@
-import express from 'express';
-
+const express = require('express');
 const router = express.Router();
 
-// Get list of movies with filters
+// Search & Filter Movies
 router.get('/', (req, res) => {
-    const { industry, genre, year, language, limit = 50 } = req.query;
-    let filteredMovies = req.app.locals.movies;
+  const db = req.app.get('db');
+  try {
+    const { industry, genre, search, sortBy, order = 'DESC' } = req.query;
+    let query = 'SELECT * FROM movies WHERE 1=1';
+    let params = [];
 
-    if (industry) filteredMovies = filteredMovies.filter(m => m.industry === industry);
-    if (genre) filteredMovies = filteredMovies.filter(m => m.genre === genre);
-    if (year) filteredMovies = filteredMovies.filter(m => m.release_year === parseInt(year));
-    if (language) filteredMovies = filteredMovies.filter(m => m.language === language);
-
-    res.json(filteredMovies.slice(0, parseInt(limit)));
-});
-
-// Single movie detail
-router.get('/:id', (req, res) => {
-    const movie = req.app.locals.movies.find(m => m.id === parseInt(req.params.id));
-    if (!movie) return res.status(404).json({ error: 'Movie not found' });
-    res.json(movie);
-});
-
-// Recommendation engine (Simplified)
-router.get('/recommend', (req, res) => {
-    const { genre, actor, mood, ott_platform, ratings, industry, query } = req.query;
-    let filteredMovies = req.app.locals.movies;
-
-    if (query) {
-        const q = query.toLowerCase();
-        filteredMovies = filteredMovies.filter(m => m.title.toLowerCase().includes(q));
+    if (industry) {
+      query += ' AND industry = ?';
+      params.push(industry);
     }
-    if (genre) filteredMovies = filteredMovies.filter(m => m.genre === genre);
-    if (industry) filteredMovies = filteredMovies.filter(m => m.industry === industry);
-    if (actor) filteredMovies = filteredMovies.filter(m => m.cast.includes(actor));
-    if (ott_platform) filteredMovies = filteredMovies.filter(m => m.ott_platform === ott_platform);
-    if (ratings) filteredMovies = filteredMovies.filter(m => m.rating >= parseFloat(ratings));
+    if (genre) {
+      query += ' AND genres LIKE ?';
+      params.push(`%${genre}%`);
+    }
+    if (search) {
+      query += ' AND title LIKE ?';
+      params.push(`%${search}%`);
+    }
 
-    res.json(filteredMovies.sort((a, b) => b.rating - a.rating).slice(0, 20));
+    const allowedSortFields = ['imdbRating', 'revenue', 'year', 'budget'];
+    if (sortBy && allowedSortFields.includes(sortBy)) {
+      query += ` ORDER BY ${sortBy} ${order === 'ASC' ? 'ASC' : 'DESC'}`;
+    } else {
+      query += ' ORDER BY revenue DESC';
+    }
+
+    query += ' LIMIT 100';
+    const movies = db.prepare(query).all(params);
+    res.json(movies.map(m => ({
+      ...m,
+      genres: m.genres ? m.genres.split(',') : [],
+      actors: m.actors ? m.actors.split(',') : []
+    })));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
-export default router;
+// Advanced Recommendations
+router.get('/recommend', (req, res) => {
+  const db = req.app.get('db');
+  try {
+    const { genre, actor, industry, rating, movieId } = req.query;
+    let query = 'SELECT * FROM movies WHERE 1=1';
+    let params = [];
+
+    if (movieId) {
+      query += ' AND id != ?';
+      params.push(movieId);
+    }
+
+    if (genre) {
+      query += ' AND genres LIKE ?';
+      params.push(`%${genre}%`);
+    }
+    if (actor) {
+      query += ' AND actors LIKE ?';
+      params.push(`%${actor}%`);
+    }
+    if (industry) {
+      query += ' AND industry = ?';
+      params.push(industry);
+    }
+    if (rating) {
+      query += ' AND imdbRating >= ?';
+      params.push(Number(rating));
+    }
+
+    query += ' ORDER BY imdbRating DESC LIMIT 12';
+    const movies = db.prepare(query).all(params);
+    res.json(movies.map(m => ({
+      ...m,
+      genres: m.genres ? m.genres.split(',') : [],
+      actors: m.actors ? m.actors.split(',') : []
+    })));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/:id', (req, res) => {
+  const db = req.app.get('db');
+  try {
+    const movie = db.prepare('SELECT * FROM movies WHERE id = ?').get(req.params.id);
+    if (!movie) return res.status(404).json({ message: 'Movie not found' });
+    
+    res.json({
+      ...movie,
+      genres: movie.genres ? movie.genres.split(',') : [],
+      actors: movie.actors ? movie.actors.split(',') : []
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;
+

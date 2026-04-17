@@ -4,11 +4,5 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss()
-  ],
-  optimizeDeps: {
-    include: ['lucide-react', 'recharts', 'axios', 'framer-motion']
-  }
+  plugins: [react(), tailwindcss()],
 })
